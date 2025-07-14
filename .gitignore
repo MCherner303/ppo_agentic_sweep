@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment data
+.env
+*.env
+
+# Logs, outputs, and sweep data
+logs/
+sweep_logs/
+training.log
+comparison_results/
+checkpoints/
+saved_models/
+analysis/
+test_visualizations/
+
+# Jupyter and IPython
+.ipynb_checkpoints/
+*.ipynb
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Egg and build
+*.egg-info/
+build/
+dist/
+
+# Misc
+*.log
+*.tmp
+
+# VSCode and IDE
+.vscode/
+.idea/

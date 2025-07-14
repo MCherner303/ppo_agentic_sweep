@@ -1,0 +1,6 @@
+pettingzoo>=1.24.0
+numpy>=1.21.0
+gymnasium>=0.28.1
+pygame>=2.1.0
+faiss-cpu>=1.7.0
+torch>=2.0.0
