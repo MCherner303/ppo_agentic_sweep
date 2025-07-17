@@ -289,6 +289,19 @@ class PPOTrainer:
                 'timestamp': time.time(),
                 'metrics': ppo_metrics
             }
+            # Convert all float32 (and numpy) to Python float for JSON serialization
+            for k, v in log_entry.items():
+                if isinstance(v, (np.floating, np.float32, np.float64)):
+                    log_entry[k] = float(v)
+                elif isinstance(v, torch.Tensor):
+                    log_entry[k] = float(v.item())
+                elif isinstance(v, dict):
+                    # Recursively convert nested dicts (e.g., 'metrics')
+                    for mk, mv in v.items():
+                        if isinstance(mv, (np.floating, np.float32, np.float64)):
+                            v[mk] = float(mv)
+                        elif isinstance(mv, torch.Tensor):
+                            v[mk] = float(mv.item())
             f.write(json.dumps(log_entry) + '\n')
     
     def collect_experience(self):

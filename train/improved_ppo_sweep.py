@@ -114,8 +114,13 @@ class PPOSweep:
                 skip = True  # skip this and the next item (the value)
                 continue
             args.append(a)
+        cmd_python = str(Path(__file__).parent.parent / ".venv/bin/python")
+        # Diagnostic: print python version and pip list before running train_ppo.py
+        print(f"[DIAG] Using Python: {cmd_python}")
+        os.system(f'{cmd_python} --version')
+        os.system(f'{cmd_python} -m pip list')
         cmd = [
-            "python", "train/train_ppo.py",
+            cmd_python, "train/train_ppo.py",
             *args,
             "--seed", str(seed),
             "--log-dir", str(self.log_dir),
@@ -129,78 +134,91 @@ class PPOSweep:
         print(" ".join(cmd))
         
         with open(log_file, 'w') as f:
+            venv_dir = str(Path(__file__).parent.parent / ".venv")
+            venv_bin = str(Path(venv_dir) / "bin")
+            env = os.environ.copy()
+            env["VIRTUAL_ENV"] = venv_dir
+            env["PATH"] = venv_bin + os.pathsep + env.get("PATH", "")
+            # Optionally set PYTHONHOME and PYTHONPATH if needed (not usually required)
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
+                universal_newlines=True,
+                env=env
             )
-            
+
             # Monitor output for early stopping
             best_reward = -np.inf
             last_improvement = 0
             episode_rewards = []
             error_lines = []
-            
+
             for line in process.stdout:
                 f.write(line)
                 f.flush()
-                
+
                 # Save error lines for later (last 10 lines)
                 error_lines.append(line)
                 if len(error_lines) > 10:
                     error_lines.pop(0)
-                
+
                 # Parse episode information
                 if "=== Episode" in line and "Reward:" in line:
                     try:
                         ep_num = int(line.split("Episode")[1].split()[0])
                         reward = float(line.split("Reward:")[1].split(",")[0])
                         episode_rewards.append(reward)
-                        
+
                         # Check for improvement
                         if reward > best_reward + 0.1:  # Small threshold
                             best_reward = reward
                             last_improvement = ep_num
-                        
+
                         # Early stopping check
                         if (ep_num - last_improvement) >= 200 and ep_num >= 250:
                             print(f"\n⚠️  Early stopping at episode {ep_num} (no improvement for {ep_num - last_improvement} episodes)")
                             process.terminate()
                             break
-                            
-                    except (IndexError, ValueError) as e:
+                    except Exception:
                         print(f"Error parsing line: {line.strip()}")
                         continue
             process.wait()
             exit_code = process.returncode
-            
-        # If the process failed, mark as failed and capture error
-        if exit_code != 0 or len(episode_rewards) == 0:
-            error_msg = f"Process exited with code {exit_code}. Last log lines:\n" + ''.join(error_lines)
+
+            # If the process failed, mark as failed and capture error
+            if exit_code != 0 or len(episode_rewards) == 0:
+                error_msg = f"Process exited with code {exit_code}. Last log lines:\n" + ''.join(error_lines)
+                # Guard: If import error, print and exit sweep
+                if any('ModuleNotFoundError' in line or 'ImportError' in line for line in error_lines):
+                    print("\n[SWEEP GUARD] Import error detected in subprocess. Stopping further launches.\n")
+                    print(error_msg)
+                    # Exit the sweep entirely
+                    import sys
+                    sys.exit(1)
+                return {
+                    'seed': seed,
+                    'best_reward': -np.inf,
+                    'final_reward': -np.inf,
+                    'episodes': 0,
+                    'avg_last_100': float('nan'),
+                    'log_file': str(log_file),
+                    'status': 'failed',
+                    'error': error_msg
+                }
+            # Return training statistics
             return {
                 'seed': seed,
-                'best_reward': -np.inf,
-                'final_reward': -np.inf,
-                'episodes': 0,
-                'avg_last_100': float('nan'),
+                'best_reward': best_reward,
+                'final_reward': episode_rewards[-1] if episode_rewards else -np.inf,
+                'episodes': len(episode_rewards),
+                'avg_last_100': np.mean(episode_rewards[-100:]) if len(episode_rewards) >= 100 else np.mean(episode_rewards),
                 'log_file': str(log_file),
-                'status': 'failed',
-                'error': error_msg
+                'status': 'success',
+                'error': None
             }
-        # Return training statistics
-        return {
-            'seed': seed,
-            'best_reward': best_reward,
-            'final_reward': episode_rewards[-1] if episode_rewards else -np.inf,
-            'episodes': len(episode_rewards),
-            'avg_last_100': np.mean(episode_rewards[-100:]) if len(episode_rewards) >= 100 else np.mean(episode_rewards),
-            'log_file': str(log_file),
-            'status': 'success',
-            'error': None
-        }
     
     def run(self) -> Dict[str, Any]:
         """Run the hyperparameter sweep across all seeds."""
@@ -257,9 +275,7 @@ class PPOSweep:
         
         return summary
 
-
 def run_grid_search():
-    """Run a grid search over hyperparameters."""
     parser = argparse.ArgumentParser(description='PPO Hyperparameter Sweep')
     parser.add_argument('--log-dir', type=str, default='sweep_logs',
                       help='Base directory for logs')
@@ -267,6 +283,7 @@ def run_grid_search():
                       help='Number of random seeds per config')
     parser.add_argument('--max-configs', type=int, default=None,
                       help='Maximum number of configurations to try')
+    parser.add_argument('--resume', action='store_true', help='Resume sweep: skip configs with summary.json')
     args = parser.parse_args()
     
     # Generate all possible configurations
@@ -279,9 +296,14 @@ def run_grid_search():
     # Run each configuration
     results = []
     for i, config in enumerate(configs):
-        timestamp = time.strftime('%Y%m%d-%H%M%S')
-        config_dir = Path(args.log_dir) / f"sweep_{timestamp}_{str(config)}"
-        
+        config_str = str(config)
+        # Use deterministic config_dir naming so resume works
+        config_dir = Path(args.log_dir) / f"sweep_{config_str}"
+        summary_file = config_dir / 'summary.json'
+        if args.resume and summary_file.exists():
+            print(f"[RESUME] Skipping config {i+1}/{len(configs)} ({config_str}) -- already complete.")
+            continue
+        config_dir.mkdir(parents=True, exist_ok=True)
         print(f"\n{'#'*80}")
         print(f"Running Configuration {i+1}/{len(configs)}")
         print(f"Config: {config}")
@@ -326,9 +348,7 @@ def run_grid_search():
     if not any_failed:
         print("No failed runs detected!")
     print("="*80)
-
     return results
-
 
 if __name__ == "__main__":
     run_grid_search()

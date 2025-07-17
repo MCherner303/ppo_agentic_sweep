@@ -72,7 +72,10 @@ class PPOAgent:
             checkpoint_dir: Directory to save checkpoints
         """
         self.agent_id = agent_id
-        self.device = device
+        if isinstance(device, str):
+            self.device = torch.device(device)
+        else:
+            self.device = device
         self.ppo_epochs = ppo_epochs
         self.num_mini_batches = num_mini_batches
         self.clip_param = clip_param
@@ -148,6 +151,7 @@ class PPOAgent:
         self.scaler = GradScaler(enabled=self.mixed_precision)
         
         # Track training statistics
+        self.global_step = 0
         self.stats = {
             'policy_loss': [],
             'value_loss': [],
@@ -464,7 +468,7 @@ class PPOAgent:
                 
                 try:
                     # Forward pass with mixed precision
-                    with autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.mixed_precision):
+                    with autocast(dtype=torch.float16, enabled=self.mixed_precision):
                         # Get current policy outputs
                         policy_outputs = self.policy(states[idx])
                         
