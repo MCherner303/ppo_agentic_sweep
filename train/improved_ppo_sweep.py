@@ -275,7 +275,20 @@ class PPOSweep:
         
         return summary
 
+def run_config_job(i, config, config_dir, total, num_seeds):
+    config_str = str(config)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    print(f"\n{'#'*80}")
+    print(f"Running Configuration {i+1}/{total}")
+    print(f"Config: {config}")
+    print(f"Logging to: {config_dir}")
+    print(f"{'#'*80}\n")
+    sweep = PPOSweep(config, config_dir, num_seeds=num_seeds)
+    result = sweep.run()
+    return result
+
 def run_grid_search():
+    import concurrent.futures
     parser = argparse.ArgumentParser(description='PPO Hyperparameter Sweep')
     parser.add_argument('--log-dir', type=str, default='sweep_logs',
                       help='Base directory for logs')
@@ -284,56 +297,59 @@ def run_grid_search():
     parser.add_argument('--max-configs', type=int, default=None,
                       help='Maximum number of configurations to try')
     parser.add_argument('--resume', action='store_true', help='Resume sweep: skip configs with summary.json')
+    parser.add_argument('--max-workers', type=int, default=2, help='Number of concurrent configs to run')
     args = parser.parse_args()
-    
+
     # Generate all possible configurations
     configs = [PPOConfig(**params) for params in generate_hyperparameter_grid()]
-    
+
     if args.max_configs and len(configs) > args.max_configs:
         print(f"Randomly sampling {args.max_configs} configurations from {len(configs)} possible...")
         configs = random.sample(configs, args.max_configs)
-    
-    # Run each configuration
-    results = []
+
+    # Prepare jobs (skip those already completed if resume)
+    jobs = []
     for i, config in enumerate(configs):
         config_str = str(config)
-        # Use deterministic config_dir naming so resume works
         config_dir = Path(args.log_dir) / f"sweep_{config_str}"
         summary_file = config_dir / 'summary.json'
         if args.resume and summary_file.exists():
             print(f"[RESUME] Skipping config {i+1}/{len(configs)} ({config_str}) -- already complete.")
             continue
-        config_dir.mkdir(parents=True, exist_ok=True)
-        print(f"\n{'#'*80}")
-        print(f"Running Configuration {i+1}/{len(configs)}")
-        print(f"Config: {config}")
-        print(f"Logging to: {config_dir}")
-        print(f"{'#'*80}\n")
-        
-        # Run the sweep for this configuration
-        sweep = PPOSweep(config, config_dir, num_seeds=args.num_seeds)
-        result = sweep.run()
-        results.append(result)
-        
-        # Save overall progress
-        with open(Path(args.log_dir) / 'all_results.json', 'w') as f:
-            json.dump(results, f, indent=2)
-    
+        jobs.append((i, config, config_dir, len(configs), args.num_seeds))
+
+    results = []
+    results_path = Path(args.log_dir) / 'all_results.json'
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=args.max_workers) as executor:
+        # Submit all jobs
+        future_to_job = {executor.submit(run_config_job, *job): job for job in jobs}
+        for future in concurrent.futures.as_completed(future_to_job):
+            job = future_to_job[future]
+            try:
+                result = future.result()
+                results.append(result)
+                # Write summary after each config
+                with open(results_path, 'w') as f:
+                    json.dump(results, f, indent=2)
+            except Exception as exc:
+                print(f"[ERROR] Config {job[1]} generated an exception: {exc}")
+
     # Print final summary
     print("\n" + "="*80)
     print("Hyperparameter Sweep Complete!")
     print(f"Tested {len(results)} configurations with {args.num_seeds} seeds each")
-    
+
     # Sort by average best reward
     results.sort(key=lambda x: x['avg_best_reward'], reverse=True)
-    
+
     print("\nTop 5 Configurations:")
     for i, result in enumerate(results[:5]):
         print(f"{i+1}. {result['config']}")
         print(f"   Avg Best Reward: {result['avg_best_reward']:.2f}")
         print(f"   Logs: {Path(result['results'][0]['log_file']).parent}")
         print()
-    
+
     # Print failed runs summary
     print("\nFailed Runs Summary:")
     any_failed = False
