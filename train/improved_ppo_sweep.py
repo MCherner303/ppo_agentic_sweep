@@ -65,19 +65,21 @@ def generate_hyperparameter_grid() -> List[Dict[str, Any]]:
     """Generate a grid of hyperparameter configurations to test."""
     grid = {
         # Narrowed learning rates based on previous results
-        'actor_lr': [5e-5, 7e-5, 1e-4],
-        'critic_lr': [5e-5, 7e-5, 1e-4],
+        'actor_lr': [7e-5],
+        'critic_lr': [7e-5, 1e-4],
         
         # Refine clip parameter
-        'clip_param': [0.1, 0.15, 0.2],
+        'clip_param': [0.1, 0.15],
         
         # More precise GAE lambda and entropy tuning
-        'gae_lambda': [0.92, 0.95, 0.98],
-        'entropy_coef': [0.0, 0.005, 0.01],
+        'gae_lambda': [0.92, 0.95],
+        'entropy_coef': [0.0, 0.005],
         
         # Other parameters
-        'num_mini_batches': [4, 8],
+        'num_mini_batches': [4],
         'batch_size': [2048],
+        'ppo_epochs': [4],
+        'num_steps': [2048],
     }
     
     # Generate all combinations
@@ -178,7 +180,7 @@ class PPOSweep:
                             last_improvement = ep_num
 
                         # Early stopping check
-                        if (ep_num - last_improvement) >= 200 and ep_num >= 250:
+                        if (ep_num - last_improvement) >= 400 and ep_num >= 250:
                             print(f"\n⚠️  Early stopping at episode {ep_num} (no improvement for {ep_num - last_improvement} episodes)")
                             process.terminate()
                             break
@@ -330,31 +332,38 @@ def run_grid_search():
                 result = future.result()
                 results.append(result)
                 # Write summary after each config
-                with open(results_path, 'w') as f:
-                    json.dump(results, f, indent=2)
             except Exception as exc:
                 print(f"[ERROR] Config {job[1]} generated an exception: {exc}")
+
+    # Filter out -inf/NaN results
+    filtered_results = [result for result in results if not np.isinf(result['avg_best_reward']) and not np.isnan(result['avg_best_reward'])]
+
+    # Sort by average best reward
+    filtered_results.sort(key=lambda x: x['avg_best_reward'], reverse=True)
+
+    # Write top 10 configs to file
+    top_configs_path = Path(args.log_dir) / 'top_configs.json'
+    with open(top_configs_path, 'w') as f:
+        json.dump([result['config'] for result in filtered_results[:10]], f, indent=2)
 
     # Print final summary
     print("\n" + "="*80)
     print("Hyperparameter Sweep Complete!")
     print(f"Tested {len(results)} configurations with {args.num_seeds} seeds each")
 
-    # Sort by average best reward
-    results.sort(key=lambda x: x['avg_best_reward'], reverse=True)
-
-    print("\nTop 5 Configurations:")
-    for i, result in enumerate(results[:5]):
+    print("\nTop 10 Configurations:")
+    for i, result in enumerate(filtered_results[:10]):
         print(f"{i+1}. {result['config']}")
         print(f"   Avg Best Reward: {result['avg_best_reward']:.2f}")
         print(f"   Logs: {Path(result['results'][0]['log_file']).parent}")
         print()
 
+    print(f"\nTop 10 configs written to: {top_configs_path}")
+
     # Print failed runs summary
     print("\nFailed Runs Summary:")
     any_failed = False
     for result in results:
-        for seed_result in result['results']:
             if seed_result.get('status') == 'failed':
                 any_failed = True
                 print(f"Config: {result['config']}, Seed: {seed_result['seed']}")
