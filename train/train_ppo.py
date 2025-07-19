@@ -571,46 +571,6 @@ class PPOTrainer:
         for episode in range(1, self.config.NUM_EPISODES + 1):
             self.episode_count = episode
             
-            # Update curriculum stage if needed
-            self.update_curriculum(episode)
-            
-            try:
-                # Collect experience
-                batch, episode_metrics = self.collect_experience()
-                
-                # Skip update if batch is empty
-                if not batch or len(batch.get('states', [])) == 0:
-                    print(f"[WARNING] Empty batch in episode {episode}, skipping update")
-                    continue
-                    
-                # Update agents
-                ppo_metrics = self.update_agents(batch)
-                
-                # Log metrics
-                metrics = {
-                    'episode_reward': episode_metrics.get('episode_reward', 0),
-                    'episode_length': episode_metrics.get('episode_length', 0),
-                    'treasures_collected': episode_metrics.get('treasures_collected', 0),
-                    **ppo_metrics  # Include all PPO metrics directly
-                }
-                
-                self.log_metrics(episode, self.global_step, metrics)
-                # Print summary line for sweep parsing
-                print(f"=== Episode {episode} Reward: {metrics.get('episode_reward', 0):.2f}, Length: {metrics.get('episode_length', 0)}, Treasures: {metrics.get('treasures_collected', 0)}")
-                
-            except Exception as e:
-                print(f"[ERROR] Error in training loop at episode {episode}: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                continue  # Continue to next episode
-            
-            # Save models periodically
-            if episode % self.config.SAVE_INTERVAL == 0:
-                self.save_models(episode)
-            
-            # Update global step - get batch size from the states tensor
-            self.global_step += batch['states'].size(0)
-            
             # Early stopping if needed
             if self.check_early_stopping():
                 print("Early stopping triggered.")

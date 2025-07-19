@@ -200,65 +200,71 @@ class PPOAgent:
         Returns:
             torch.Tensor: Observation tensor with shape [batch_size, 4, grid_size, grid_size]
         """
-        print("\n" + "="*50)
-        print("[DEBUG] get_observation called")
-        print(f"Input type: {type(obs)}")
+        # print("\n" + "="*50)
+        # print("[DEBUG] get_observation called")
+        # print(f"Input type: {type(obs)}")
         if hasattr(obs, 'shape'):
-            print(f"Input shape: {obs.shape}")
+            # print(f"Input shape: {obs.shape}")
+            pass
         elif isinstance(obs, dict):
-            print(f"Dict keys: {list(obs.keys())}")
+            # print(f"Dict keys: {list(obs.keys())}")
             for k, v in obs.items():
                 if hasattr(v, 'shape'):
-                    print(f"  - {k} shape: {v.shape}")
+                    # print(f"  - {k} shape: {v.shape}")
+                    pass
                 else:
-                    print(f"  - {k} type: {type(v)}")
+                    # print(f"  - {k} type: {type(v)}")
+                    pass
         
         # Extract grid from observation dict if needed
         if isinstance(obs, dict) and 'grid' in obs:
-            print("Extracting 'grid' from observation dict")
+            # print("Extracting 'grid' from observation dict")
             grid = obs['grid']
         else:
-            print("Using observation directly")
+            # print("Using observation directly")
             grid = obs
+            pass
         
         # Debug grid before conversion
-        print("\n[DEBUG] Grid before conversion:")
-        print(f"Type: {type(grid)}")
+        # print("\n[DEBUG] Grid before conversion:")
+        # print(f"Type: {type(grid)}")
         if hasattr(grid, 'shape'):
-            print(f"Shape: {grid.shape}")
+            # print(f"Shape: {grid.shape}")
+            pass
         if hasattr(grid, 'dtype'):
-            print(f"Dtype: {grid.dtype}")
+            # print(f"Dtype: {grid.dtype}")
+            pass
         
         # Convert to tensor if not already
         if not isinstance(grid, torch.Tensor):
-            print("Converting to tensor...")
+            # print("Converting to tensor...")
             try:
                 grid = torch.from_numpy(np.asarray(grid, dtype=np.float32))
-                print(f"Converted to tensor, new shape: {grid.shape}")
+                # print(f"Converted to tensor, new shape: {grid.shape}")
             except Exception as e:
-                print(f"Error converting to tensor: {e}")
-                print(f"Grid type: {type(grid)}")
-                print(f"Grid content: {grid}")
+                # print(f"Error converting to tensor: {e}")
+                # print(f"Grid type: {type(grid)}")
+                # print(f"Grid content: {grid}")
                 raise
         
         # Debug tensor properties
-        print("\n[DEBUG] Tensor properties:")
-        print(f"Shape: {grid.shape}")
-        print(f"Dtype: {grid.dtype}")
-        print(f"Device: {grid.device if hasattr(grid, 'device') else 'N/A'}")
+        # print("\n[DEBUG] Tensor properties:")
+        # print(f"Shape: {grid.shape}")
+        # print(f"Dtype: {grid.dtype}")
+        # print(f"Device: {grid.device if hasattr(grid, 'device') else 'N/A'}")
         
         # Handle different input shapes
-        print("\n[DEBUG] Processing tensor shape:")
+        # print("\n[DEBUG] Processing tensor shape:")
         if len(grid.shape) == 3:
             # [C, H, W] -> [1, C, H, W]
-            print(f"Adding batch dimension to shape {grid.shape}")
+            # print(f"Adding batch dimension to shape {grid.shape}")
             grid = grid.unsqueeze(0)
         elif len(grid.shape) == 5:
             # [B, 1, C, H, W] -> [B, C, H, W]
-            print(f"Removing extra dimension from shape {grid.shape}")
+            # print(f"Removing extra dimension from shape {grid.shape}")
             grid = grid.squeeze(1)
         
-        print(f"Shape after processing: {grid.shape}")
+        # print(f"Shape after processing: {grid.shape}")
         
         # Ensure we have the correct number of channels (4)
         if len(grid.shape) != 4:
@@ -268,21 +274,21 @@ class PPOAgent:
             raise ValueError(f"Expected 4 channels in observation, got {grid.size(1)}")
         
         # Move to device and ensure correct dtype
-        print("\n[DEBUG] Final processing:")
+        # print("\n[DEBUG] Final processing:")
         if not grid.is_floating_point():
-            print("Converting to float32")
+            # print("Converting to float32")
             grid = grid.float()
             
         if hasattr(self, 'device') and str(grid.device) != self.device:
-            print(f"Moving tensor to device {self.device}")
+            # print(f"Moving tensor to device {self.device}")
             grid = grid.to(device=self.device)
         
         # Final debug output
-        print("\n[DEBUG] Final observation:")
-        print(f"Shape: {grid.shape}")
-        print(f"Dtype: {grid.dtype}")
-        print(f"Device: {grid.device}")
-        print("="*50 + "\n")
+        # print("\n[DEBUG] Final observation:")
+        # print(f"Shape: {grid.shape}")
+        # print(f"Dtype: {grid.dtype}")
+        # print(f"Device: {grid.device}")
+        # print("="*50 + "\n")
         
         return grid
 
@@ -302,7 +308,7 @@ class PPOAgent:
             obs_tensor = self.get_observation(obs)
             
             # Debug print the observation shape before policy
-            print(f"[DEBUG] select_action - obs_tensor shape: {obs_tensor.shape}")
+            # print(f"[DEBUG] select_action - obs_tensor shape: {obs_tensor.shape}")
             
             # Get action and value from policy
             with torch.amp.autocast(device_type='cuda' if torch.cuda.is_available() else 'cpu', 
@@ -312,8 +318,8 @@ class PPOAgent:
                 output = self.policy(obs_tensor)
                 
                 # Debug print the output shapes
-                print(f"[DEBUG] select_action - logits shape: {output['logits'].shape}")
-                print(f"[DEBUG] select_action - value shape: {output['value'].shape if isinstance(output['value'], torch.Tensor) else 'N/A'}")
+                # print(f"[DEBUG] select_action - logits shape: {output['logits'].shape}")
+                # print(f"[DEBUG] select_action - value shape: {output['value'].shape if isinstance(output['value'], torch.Tensor) else 'N/A'}")
                 
                 # Create action distribution
                 dist = torch.distributions.Categorical(logits=output['logits'])
@@ -327,7 +333,7 @@ class PPOAgent:
                 log_prob = dist.log_prob(action)
                 
                 # Debug print the action and log prob
-                print(f"[DEBUG] select_action - action: {action}, log_prob: {log_prob}")
+                # print(f"[DEBUG] select_action - action: {action}, log_prob: {log_prob}")
                 
                 return action.item(), log_prob.item(), output['value'].item()
 
@@ -423,7 +429,7 @@ class PPOAgent:
         
         try:
             # Debug: Print batch keys for verification
-            print(f"[DEBUG] Batch keys: {list(batch.keys())}")
+            # print(f"[DEBUG] Batch keys: {list(batch.keys())}")
             
             # Unpack batch with error checking
             required_keys = ['states', 'actions', 'old_log_probs', 'old_values', 'returns', 'advantages']
@@ -439,12 +445,14 @@ class PPOAgent:
             advantages = batch['advantages']
             
             # Debug: Print batch content for verification
-            print(f"[DEBUG] Batch content:")
+            # print(f"[DEBUG] Batch content:")
             for k, v in batch.items():
                 if isinstance(v, torch.Tensor):
-                    print(f"  {k}: {v.shape} {v.dtype} {v.device}")
+                    # print(f"  {k}: {v.shape} {v.dtype} {v.device}")
+                    pass
                 else:
-                    print(f"  {k}: {type(v)}")
+                    # print(f"  {k}: {type(v)}")
+                    pass
             
             # Create indices for minibatch sampling
             batch_size = states.size(0)
@@ -507,6 +515,20 @@ class PPOAgent:
                         loss = (policy_loss 
                               + self.value_loss_coef * value_loss 
                               - self.entropy_coef * entropy)
+
+                        # === NaN/Inf Guard ===
+                        # Check all relevant losses/metrics for NaN or Inf and abort if found
+                        to_check = {
+                            'policy_loss': policy_loss,
+                            'value_loss': value_loss,
+                            'entropy': entropy,
+                            'loss': loss,
+                        }
+                        for name, tensor in to_check.items():
+                            if torch.isnan(tensor).any() or torch.isinf(tensor).any():
+                                msg = f"[ABORT] NaN/Inf detected in {name} during PPO update. Aborting run."
+                                print(msg)
+                                raise RuntimeError(msg)
                     
                     # Backward pass with gradient scaling for mixed precision
                     self.actor_optimizer.zero_grad()
@@ -560,22 +582,23 @@ class PPOAgent:
                         
                         # Log detailed metrics periodically
                         if self.global_step % 10 == 0:
-                            print(f"[DEBUG] Step {self.global_step}:")
-                            print(f"  Policy loss: {policy_loss.item():.4f}")
-                            print(f"  Value loss: {value_loss.item():.4f}")
-                            print(f"  Entropy: {entropy.item():.4f}")
-                            print(f"  Explained variance: {explained_var:.4f}")
-                            print(f"  Clip fraction: {clip_frac:.4f}")
-                            print(f"  Ratio mean: {ratio.mean().item():.4f} ± {ratio.std().item():.4f}")
-                            print(f"  Advantages mean: {advantages[idx].mean().item():.4f} ± {advantages[idx].std().item():.4f}")
-                            print(f"  Returns mean: {returns_batch.mean().item():.4f} ± {returns_batch.std().item():.4f}")
-                            print(f"  Values mean: {values.mean().item():.4f} ± {values.std().item():.4f}")
+                            # print(f"[DEBUG] Step {self.global_step}:")
+                            # print(f"  Policy loss: {policy_loss.item():.4f}")
+                            # print(f"  Value loss: {value_loss.item():.4f}")
+                            # print(f"  Entropy: {entropy.item():.4f}")
+                            # print(f"  Explained variance: {explained_var:.4f}")
+                            # print(f"  Clip fraction: {clip_frac:.4f}")
+                            # print(f"  Ratio mean: {ratio.mean().item():.4f} ± {ratio.std().item():.4f}")
+                            # print(f"  Advantages mean: {advantages[idx].mean().item():.4f} ± {advantages[idx].std().item():.4f}")
+                            # print(f"  Returns mean: {returns_batch.mean().item():.4f} ± {returns_batch.std().item():.4f}")
+                            # print(f"  Values mean: {values.mean().item():.4f} ± {values.std().item():.4f}")
+                            pass
                     
                     # Update global step counter
                     self.global_step += 1
                     
                 except Exception as e:
-                    print(f"[ERROR] Error in minibatch processing: {str(e)}")
+                    # print(f"[ERROR] Error in minibatch processing: {str(e)}")
                     import traceback
                     traceback.print_exc()
                     continue
@@ -591,7 +614,7 @@ class PPOAgent:
             
         except Exception as e:
             error_msg = f"Error in _update_network: {str(e)}"
-            print(f"[ERROR] {error_msg}")
+            # print(f"[ERROR] {error_msg}")
             import traceback
             traceback.print_exc()
             metrics['error'] = error_msg
@@ -604,16 +627,17 @@ class PPOAgent:
             
             # Log metrics to console for debugging
             if self.global_step % 10 == 0:
-                print("\n=== Training Metrics ===")
+                # print("\n=== Training Metrics ===")
                 for k, v in metrics.items():
                     if isinstance(v, (int, float)):
-                        print(f"{k}: {v:.6f}")
-                print("======================\n")
+                        # print(f"{k}: {v:.6f}")
+                        pass
+                # print("======================\n")
             
             return metrics
         except Exception as e:
             error_msg = f"Error in ppo_update: {str(e)}"
-            print(f"[ERROR] {error_msg}")
+            # print(f"[ERROR] {error_msg}")
             import traceback
             traceback.print_exc()
             return {
@@ -701,7 +725,7 @@ class PPOAgent:
             return metrics
             
         except Exception as e:
-            print(f"[ERROR] in ppo_update: {str(e)}")
+            # print(f"[ERROR] in ppo_update: {str(e)}")
             import traceback
             traceback.print_exc()
             return {'error': str(e)}
@@ -738,10 +762,10 @@ class PPOAgent:
                 critic_sched_path = os.path.join(path, f"{self.agent_id}_critic_scheduler.pth")
                 torch.save(self.critic_scheduler.state_dict(), critic_sched_path)
                 
-            print(f"[INFO] Saved model for agent {self.agent_id} to {path}")
+            # print(f"[INFO] Saved model for agent {self.agent_id} to {path}")
             
         except Exception as e:
-            print(f"[ERROR] Failed to save model for agent {self.agent_id}: {str(e)}")
+            # print(f"[ERROR] Failed to save model for agent {self.agent_id}: {str(e)}")
             raise
 
 def create_ppo_agents(grid_size: int = 10, 
