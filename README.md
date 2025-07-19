@@ -1,5 +1,8 @@
 # PPO Agentic Hyperparameter Sweep
 
+> **Robustness Evaluation:**
+> See [`ROBUSTNESS_EVAL.md`](ROBUSTNESS_EVAL.md) for a deep-dive on multi-seed robustness evaluation, technical stability tricks, and the latest results on top configs.
+
 A robust framework for running large-scale hyperparameter sweeps with Proximal Policy Optimization (PPO) agents in custom gridworld environments.
 
 ## Overview
